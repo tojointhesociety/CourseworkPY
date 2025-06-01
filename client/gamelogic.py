@@ -1,5 +1,7 @@
 import pygame
 import random
+from game_objects import GameGrid
+from ship_selector import ShipSelector
 from constants import *
 
 
@@ -7,73 +9,193 @@ class GameLogic:
     def __init__(self, screen):
         self.screen = screen
         self.player_grid = [[0] * 10 for _ in range(10)]
-        self.ai_grid = [[0] * 10 for _ in range(10)]
         self.ships = [4, 3, 3, 2, 2, 2, 1, 1, 1, 1]
-        self.selected_ship = None
-        self.orientation = 0
+        self.available_ships = self.ships.copy()
+        self.placement_mode = True
         self.current_turn = True
         self.game_over = False
-        self.available_ships = self.ships.copy()
+        self.ship_selector = ShipSelector(SCREEN_WIDTH - 250, 100)
+        self.ai_ships = self.place_ai_ships()
+        self.ai_grid = [[0] * 10 for _ in range(10)]
+        self.messages = []
+        self.message_font = pygame.font.SysFont('Arial', 24)
+        self.message_rect = pygame.Rect(SCREEN_WIDTH - 300, 20, 280, 200)
+        self.status_font = pygame.font.SysFont('Arial', 28, bold=True)
+        self.status_rect = pygame.Rect(SCREEN_WIDTH - 300, 250, 280, 150)
+        self.rotation_angle = 0
+        self.max_rotation_angle = 90
+        self.ships_available = [1, 2, 3, 4]
+        self.ship_types = [4, 3, 2, 1]
+        self.selected_ship_size = None
+        self.ship_orientation = 0
 
-    def validate_placement(self, x, y, size):
-        if self.orientation == 0 and x + size > 10: return False
-        if self.orientation == 1 and y + size > 10: return False
+    def update(self):
+        if self.rotation_angle > 0:
+            self.rotation_angle = max(0, self.rotation_angle - 10)
 
+    def add_message(self, text):
+        """Добавляет сообщение в лог"""
+        self.messages.append(text)
+        if len(self.messages) > 5:
+            self.messages.pop(0)
+
+    def get_available_ships_list(self):
+        """Возвращает список доступных размеров кораблей"""
+        available = []
+        for i, count in enumerate(self.ships_available):
+            if count > 0:
+                available.append(self.ship_types[i])
+        return available
+
+    def draw_messages(self, surface):
+        """Отрисовывает панель сообщений"""
+        pygame.draw.rect(surface, (*DARK_BLUE, 200), self.message_rect)
+        pygame.draw.rect(surface, BLACK, self.message_rect, 2)
+
+        for i, msg in enumerate(self.messages[-5:]):
+            text = self.message_font.render(msg, True, WHITE)
+            surface.blit(text, (self.message_rect.x + 10,
+                                self.message_rect.y + 10 + i * 30))
+
+    def draw_status_panel(self, surface):
+        """Отрисовывает панель статуса"""
+        pygame.draw.rect(surface, (*DARK_BLUE, 200), self.status_rect)
+        pygame.draw.rect(surface, BLACK, self.status_rect, 2)
+
+        status = "Ваш ход" if self.current_turn else "Ход ИИ"
+        text = self.status_font.render(status, True,
+                                       GREEN if self.current_turn else RED)
+        surface.blit(text, (self.status_rect.x + 20, self.status_rect.y + 20))
+
+    def validate_ai_placement(self, x, y, size, orientation, grid):
+        # Проверяем границы
+        if orientation == 0 and x + size > 10:
+            return False
+        if orientation == 1 and y + size > 10:
+            return False
+
+        # Проверяем саму клетку и окружение
         for i in range(-1, size + 1):
             for j in range(-1, 2):
-                check_x = x + (i if self.orientation == 0 else j)
-                check_y = y + (j if self.orientation == 0 else i)
+                check_x = x + (i if orientation == 0 else j)
+                check_y = y + (j if orientation == 0 else i)
+
+                if 0 <= check_x < 10 and 0 <= check_y < 10:
+                    if grid[check_y][check_x] != 0:
+                        return False
+        return True
+
+    def init_battle(self):
+        self.player_grid_obj = GameGrid(left_margin, upper_margin, is_player=True)
+        self.ai_grid_obj = GameGrid(left_margin + 15 * block_size, upper_margin, is_player=False)
+        self.battle_initialized = True
+
+    def validate_placement(self, x, y, size):
+        # Проверка границ
+        if self.ship_orientation == 0 and x + size > 10:
+            return False
+        if self.ship_orientation == 1 and y + size > 10:
+            return False
+
+        # Проверка соседних клеток
+        for i in range(-1, size + 1):
+            for j in range(-1, 2):
+                check_x = x + (i if self.ship_orientation == 0 else j)
+                check_y = y + (j if self.ship_orientation == 0 else i)
+
                 if 0 <= check_x < 10 and 0 <= check_y < 10:
                     if self.player_grid[check_y][check_x] != 0:
                         return False
         return True
 
-    def place_ship(self, x, y):
-        if not self.selected_ship: return
-        if not self.validate_placement(x, y, self.selected_ship): return
-
-        for i in range(self.selected_ship):
-            dx = i if self.orientation == 0 else 0
-            dy = i if self.orientation == 1 else 0
+    def place_ship(self, x, y, size):
+        for i in range(size):
+            dx = i if self.ship_orientation == 0 else 0
+            dy = i if self.ship_orientation == 1 else 0
             self.player_grid[y + dy][x + dx] = 1
 
-        self.available_ships.remove(self.selected_ship)
-        self.selected_ship = None
-        if not self.available_ships:
-            self.start_battle()
+        # Уменьшаем количество доступных кораблей этого типа
+        ship_index = [4, 3, 2, 1].index(size)
+        self.ships_available[ship_index] -= 1
+
+        # Если корабли этого типа закончились - сбрасываем выбор
+        if self.ships_available[ship_index] <= 0:
+            self.selected_ship_size = None
 
     def rotate_ship(self):
         self.orientation = 1 - self.orientation
 
     def handle_shot(self, x, y, is_player=True):
-        grid = self.ai_grid if is_player else self.player_grid
-        if grid[y][x] in [2, 3]: return False
+        target_grid = self.ai_grid if is_player else self.player_grid
 
-        if grid[y][x] == 1:
-            grid[y][x] = 2
-            if not self.check_ship_sunk(x, y, grid):
-                return True
-        else:
-            grid[y][x] = 3
+        if target_grid[y][x] in [2, 3]:
+            self.add_message("Уже стреляли в эту клетку!")
+            return None  # Ничья сторона не получает ход
 
-        self.current_turn = not is_player
-        return True
+        if target_grid[y][x] == 1:  # Попадание
+            target_grid[y][x] = 2
+            sunk, ship_cells = self.check_ship_sunk(x, y, target_grid)
+
+            if sunk:
+                self.mark_around_ship(ship_cells, target_grid)
+                self.add_message(f"{'Вы' if is_player else 'ИИ'} потопили корабль!")
+            else:
+                self.add_message(f"{'Вы' if is_player else 'ИИ'} попали в корабль!")
+            return True  # Тот же игрок продолжает ход
+
+        else:  # Промах
+            target_grid[y][x] = 3
+            self.add_message(f"{'Вы' if is_player else 'ИИ'} промахнулись!")
+            return False  # Ход переходит противнику
 
     def check_ship_sunk(self, x, y, grid):
-        directions = [(0, 1), (1, 0), (-1, 0), (0, -1)]
-        for dx, dy in directions:
-            nx, ny = x + dx, y + dy
-            if 0 <= nx < 10 and 0 <= ny < 10:
-                if grid[ny][nx] == 1: return False
-        return True
+        """Проверяет, потоплен ли корабль и возвращает его клетки"""
+        ship_cells = []
+        directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]
+
+        # Находим все клетки корабля
+        to_check = [(x, y)]
+        while to_check:
+            cx, cy = to_check.pop()
+            if (cx, cy) not in ship_cells and grid[cy][cx] == 2:
+                ship_cells.append((cx, cy))
+                for dx, dy in directions:
+                    nx, ny = cx + dx, cy + dy
+                    if 0 <= nx < 10 and 0 <= ny < 10:
+                        to_check.append((nx, ny))
+
+        # Проверяем, все ли клетки корабля подбиты
+        for cx, cy in ship_cells:
+            if grid[cy][cx] != 2:
+                return False, []
+
+        return True, ship_cells
+
+    def mark_around_ship(self, ship_cells, grid):
+        """Помечает клетки вокруг потопленного корабля"""
+        directions = [(-1, -1), (-1, 0), (-1, 1),
+                      (0, -1), (0, 1),
+                      (1, -1), (1, 0), (1, 1)]
+
+        for x, y in ship_cells:
+            for dx, dy in directions:
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < 10 and 0 <= ny < 10 and grid[ny][nx] == 0:
+                    grid[ny][nx] = 3  # Помечаем как промах вокруг корабля
 
     def check_victory(self):
-        return all(cell != 1 for row in self.ai_grid for cell in row) or \
-            all(cell != 1 for row in self.player_grid for cell in row)
+        player_alive = any(1 in row for row in self.player_grid)
+        ai_alive = any(1 in row for row in self.ai_grid)
+
+        if not ai_alive:
+            return "player"
+        elif not player_alive:
+            return "ai"
+        return None
 
     def start_battle(self):
-        self.current_turn = True
-        self.ai_ships = self.place_ai_ships()
+        self.current_turn = True  # Игрок ходит первым
+        self.ai_grid = self.ai_ships
 
     def place_ai_ships(self):
         grid = [[0] * 10 for _ in range(10)]
@@ -91,24 +213,107 @@ class GameLogic:
                     placed = True
         return grid
 
-    def validate_ai_placement(self, x, y, size, orient, grid):
-        if orient == 0 and x + size > 10: return False
-        if orient == 1 and y + size > 10: return False
+    def handle_events(self, events, mouse_pos):
+        for event in events:
+            if event.type == pygame.QUIT:
+                return False
 
-        for i in range(size):
-            dx = i if orient == 0 else 0
-            dy = i if orient == 1 else 0
-            if grid[y + dy][x + dx] != 0: return False
+            # Вращение корабля по R
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_r:
+                if self.selected_ship_size is not None:  # Добавляем проверку
+                    self.ship_orientation = 1 - self.ship_orientation
+
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                # Обработка выбора корабля из селектора
+                selected = self.ship_selector.handle_event(mouse_pos, self.get_available_ships())
+                if selected is not None:
+                    self.selected_ship_size = selected
+
+                # Обработка размещения корабля на поле (только если корабль выбран)
+                if (self.selected_ship_size is not None and
+                        left_margin <= mouse_pos[0] <= left_margin + 10 * block_size and
+                        upper_margin <= mouse_pos[1] <= upper_margin + 10 * block_size):
+
+                    grid_x = (mouse_pos[0] - left_margin) // block_size
+                    grid_y = (mouse_pos[1] - upper_margin) // block_size
+
+                    if self.validate_placement(grid_x, grid_y, self.selected_ship_size):
+                        # Находим индекс только когда точно знаем, что selected_ship_size не None
+                        ship_index = self.ship_types.index(self.selected_ship_size)
+                        self.place_ship(grid_x, grid_y, self.selected_ship_size)
+                        self.ships_available[ship_index] -= 1
+
+                        if self.ships_available[ship_index] <= 0:
+                            self.selected_ship_size = None
+
+                        if all(count == 0 for count in self.ships_available):
+                            self.start_battle()
+
         return True
 
+
+    def handle_ship_placement(self, grid_x, grid_y):
+        if not self.selected_ship_size:
+            return False
+
+        if self.validate_placement(grid_x, grid_y, self.selected_ship_size):
+            self.place_ship(grid_x, grid_y, self.selected_ship_size)
+
+            # Уменьшаем количество доступных кораблей этого типа
+            ship_index = [4, 3, 2, 1].index(self.selected_ship_size)
+            self.available_ships[ship_index] -= 1
+
+            # Если корабли этого типа закончились - сбрасываем выбор
+            if self.available_ships[ship_index] <= 0:
+                self.selected_ship_size = None
+
+            return True
+        return False
+
+
+    def add_message(self, text):
+        self.messages.append(text)
+        if len(self.messages) > 5:
+            self.messages.pop(0)
+
+
+    def draw_messages(self, surface):
+        pygame.draw.rect(surface, (*DARK_BLUE, 200), self.message_rect)
+        pygame.draw.rect(surface, BLACK, self.message_rect, 2)
+
+        for i, msg in enumerate(self.messages[-5:]):  # Показываем последние 5
+            text = self.message_font.render(msg, True, WHITE)
+            surface.blit(text, (self.message_rect.x + 10,
+                                self.message_rect.y + 10 + i * 30))
 
 class ComputerAI:
     def __init__(self, grid):
         self.grid = grid
         self.possible_targets = [(x, y) for x in range(10) for y in range(10)]
+        self.last_hit = None
+        self.directions = [(0,1), (1,0), (0,-1), (-1,0)]
+        self.target_mode = False
 
     def make_move(self):
-        if not self.possible_targets: return None
+        if not self.possible_targets:
+            return None
+
+        # Если было попадание, ищем вокруг
+        if self.last_hit and not self.target_mode:
+            self.target_mode = True
+            self.directions = [(0,1), (1,0), (0,-1), (-1,0)]
+            random.shuffle(self.directions)
+
+        if self.target_mode:
+            for dx, dy in self.directions:
+                x, y = self.last_hit[0] + dx, self.last_hit[1] + dy
+                if (x, y) in self.possible_targets:
+                    self.possible_targets.remove((x, y))
+                    return x, y
+            self.target_mode = False
+            self.last_hit = None
+
+        # Случайный выстрел
         x, y = random.choice(self.possible_targets)
         self.possible_targets.remove((x, y))
         return x, y
