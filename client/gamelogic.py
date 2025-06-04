@@ -43,7 +43,6 @@ class GameLogic:
             self.messages.pop(0)
 
     def get_available_ships_list(self):
-        """Возвращает список доступных размеров кораблей"""
         available = []
         for i, count in enumerate(self.ships_available):
             if count > 0:
@@ -69,13 +68,11 @@ class GameLogic:
         surface.blit(text, (self.status_rect.x + 20, self.status_rect.y + 20))
 
     def validate_ai_placement(self, x, y, size, orientation, grid):
-        # Проверяем границы
         if orientation == 0 and x + size > 10:
             return False
         if orientation == 1 and y + size > 10:
             return False
 
-        # Проверяем саму клетку и окружение
         for i in range(-1, size + 1):
             for j in range(-1, 2):
                 check_x = x + (i if orientation == 0 else j)
@@ -92,13 +89,11 @@ class GameLogic:
         self.battle_initialized = True
 
     def validate_placement(self, x, y, size):
-        # Проверка границ
         if self.ship_orientation == 0 and x + size > 10:
             return False
         if self.ship_orientation == 1 and y + size > 10:
             return False
 
-        # Проверка соседних клеток
         for i in range(-1, size + 1):
             for j in range(-1, 2):
                 check_x = x + (i if self.ship_orientation == 0 else j)
@@ -115,7 +110,6 @@ class GameLogic:
             dy = i if self.ship_orientation == 1 else 0
             self.player_grid[y + dy][x + dx] = 1
 
-        # Уменьшаем количество доступных кораблей этого типа
         ship_index = [4, 3, 2, 1].index(size)
         self.ships_available[ship_index] -= 1
 
@@ -125,10 +119,10 @@ class GameLogic:
     def handle_shot(self, x, y, is_player=True):
         target_grid = self.ai_grid if is_player else self.player_grid
 
-        if target_grid[y][x] in [2, 3]:  # Уже стреляли сюда
+        if target_grid[y][x] in [2, 3]:
             return None
 
-        if target_grid[y][x] == 1:  # Попадание
+        if target_grid[y][x] == 1:
             target_grid[y][x] = 2
             sunk, ship_cells = self.check_ship_sunk(x, y, target_grid)
 
@@ -137,7 +131,7 @@ class GameLogic:
                 self.mark_around_ship(ship_cells, target_grid)
                 return "sunk"
             return "hit"
-        else:  # Промах
+        else:
             target_grid[y][x] = 3
             return "miss"
 
@@ -225,7 +219,6 @@ class GameLogic:
                     grid_y = (mouse_pos[1] - upper_margin) // block_size
 
                     if self.validate_placement(grid_x, grid_y, self.selected_ship_size):
-                        # Находим индекс только когда точно знаем, что selected_ship_size не None
                         ship_index = self.ship_types.index(self.selected_ship_size)
                         self.place_ship(grid_x, grid_y, self.selected_ship_size)
                         self.ships_available[ship_index] -= 1
@@ -235,7 +228,7 @@ class GameLogic:
 
                         if all(count == 0 for count in self.ships_available):
                             self.start_battle()
-                            return "battle"  # Возвращаем новое состояние
+                            return "battle"
                         return "placement"
 
 
@@ -246,11 +239,9 @@ class GameLogic:
         if self.validate_placement(grid_x, grid_y, self.selected_ship_size):
             self.place_ship(grid_x, grid_y, self.selected_ship_size)
 
-            # Уменьшаем количество доступных кораблей этого типа
             ship_index = [4, 3, 2, 1].index(self.selected_ship_size)
             self.available_ships[ship_index] -= 1
 
-            # Если корабли этого типа закончились - сбрасываем выбор
             if self.available_ships[ship_index] <= 0:
                 self.selected_ship_size = None
 
@@ -305,7 +296,6 @@ class GameLogic:
             return False
 
         try:
-            # Проверяем состояние игры
             state = self.network.send({"type": "get_state"})
             if state and 'status' in state:
                 if state['status'] == 'battle' and not self.started:
@@ -330,7 +320,6 @@ class ComputerAI:
         if not self.possible_targets:
             return None
 
-        # Если было попадание, ищем вокруг
         if self.last_hit and not self.target_mode:
             self.target_mode = True
             self.directions = [(0,1), (1,0), (0,-1), (-1,0)]
@@ -345,7 +334,6 @@ class ComputerAI:
             self.target_mode = False
             self.last_hit = None
 
-        # Случайный выстрел
         x, y = random.choice(self.possible_targets)
         self.possible_targets.remove((x, y))
         return x, y

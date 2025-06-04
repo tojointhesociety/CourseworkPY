@@ -21,7 +21,6 @@ class Server:
         self.player_count += 1
 
         try:
-            # Отправляем игроку его ID
             init_data = {"player_id": player_id}
             conn.sendall(pickle.dumps(init_data))
             print(f"Отправлено игроку {player_id}: {init_data}")
@@ -33,7 +32,6 @@ class Server:
                 "ready": False
             }
 
-            # Если есть четное количество игроков, создаем игру
             if len(self.players) % 2 == 0:
                 game_id = len(self.games)
                 players_in_game = [player_id - 1, player_id]
@@ -43,7 +41,6 @@ class Server:
                     "ready": 0
                 }
 
-                # Уведомляем игроков о начале игры
                 for pid in players_in_game:
                     self.players[pid]["status"] = "placement"
                     self.players[pid]["game_id"] = game_id
@@ -63,27 +60,24 @@ class Server:
                     message = pickle.loads(data)
                     print(f"Получено от {player_id}: {message}")
 
-                    # Обработка готовности игрока
                     if message.get('type') == 'ready':
                         game_id = self.players[player_id]["game_id"]
                         self.games[game_id]["ready"] += 1
                         self.players[player_id]["ready"] = True
 
-                        # Если оба игрока готовы, начинаем игру
                         if self.games[game_id]["ready"] == 2:
                             self.games[game_id]["status"] = "battle"
-                            self.games[game_id]["turn"] = 0  # Первый игрок ходит первым
+                            self.games[game_id]["turn"] = 0
 
                             for i, pid in enumerate(self.games[game_id]["players"]):
                                 battle_msg = {
                                     "status": "battle",
                                     "message": "Игра начинается!",
-                                    "turn": i  # 0 для первого игрока, 1 для второго
+                                    "turn": i
                                 }
                                 self.players[pid]["conn"].sendall(pickle.dumps(battle_msg))
                             print(f"Игра #{game_id} началась")
 
-                    # Обработка выстрела
                     elif message.get('type') == 'shot':
                         game_id = self.players[player_id]["game_id"]
                         opponent_id = next(
@@ -91,7 +85,6 @@ class Server:
                             if p != player_id
                         )
 
-                        # Пересылаем выстрел оппоненту
                         shot_msg = {
                             "type": "shot_result",
                             "x": message["x"],

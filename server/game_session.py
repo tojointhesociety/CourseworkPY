@@ -5,14 +5,14 @@ class Game:
         self.players_ready = 0
         self.started = False
         self.grids = [
-            [[0] * 10 for _ in range(10)],  # Player 0 grid
-            [[0] * 10 for _ in range(10)]  # Player 1 grid
+            [[0] * 10 for _ in range(10)],
+            [[0] * 10 for _ in range(10)]
         ]
         self.turn = 0
         self.winner = -1
         self.ships = [
-            [4, 3, 3, 2, 2, 2, 1, 1, 1, 1],  # Player 0 ships
-            [4, 3, 3, 2, 2, 2, 1, 1, 1, 1]  # Player 1 ships
+            [4, 3, 3, 2, 2, 2, 1, 1, 1, 1],
+            [4, 3, 3, 2, 2, 2, 1, 1, 1, 1]
         ]
 
     def validate_placement(self, player, data):

@@ -15,7 +15,6 @@ class Button:
         self.font = pygame.font.SysFont('Arial', 24, bold=True)
 
     def draw(self, surface):
-        # Анимированная волна на кнопке
         wave_surface = pygame.Surface((self.rect.w, self.rect.h), pygame.SRCALPHA)
         for i in range(self.rect.w):
             wave_height = 5 * math.sin((i + self.wave_offset) / 15)
@@ -28,7 +27,6 @@ class Button:
         surface.blit(wave_surface, (self.rect.x, self.rect.y))
         pygame.draw.rect(surface, BLACK, self.rect, 2, border_radius=10)
 
-        # Текст с тенью
         text = self.font.render(self.text, True, self.text_color)
         text_rect = text.get_rect(center=self.rect.center)
 
@@ -66,7 +64,6 @@ class GameGrid:
                 size = game_logic.selected_ship_size
                 orient = game_logic.ship_orientation
 
-                # Проверка валидности позиции
                 valid = game_logic.validate_placement(grid_x, grid_y, size)
                 color = (*GREEN, 100) if valid else (*RED, 100)
 
@@ -79,24 +76,18 @@ class GameGrid:
                             self.rect.y + (grid_y + dy) * block_size,
                             block_size, block_size
                         )
-                        # Рисуем полупрозрачный прямоугольник
                         s = pygame.Surface((block_size, block_size), pygame.SRCALPHA)
                         s.fill(color)
                         surface.blit(s, cell_rect)
-                        # Обводка
                         pygame.draw.rect(surface, BLACK, cell_rect, 1)
         for y in range(10):
             for x in range(10):
-                # Отрисовка фонового узора волн
                 surface.blit(self.wave_pattern, self.cells[y][x])
 
-                # Для поля противника (ИИ) - показываем только выстрелы
                 if not self.is_player:
-                    if grid_data[y][x] == 2:  # Попадание
-                        # Проверяем, потоплен ли корабль
+                    if grid_data[y][x] == 2:
                         sunk, _ = game_logic.check_ship_sunk(x, y, grid_data) if game_logic else (False, [])
                         if sunk:
-                            # Отрисовка потопленного корабля
                             pygame.draw.rect(surface, DARK_RED, self.cells[y][x])
                             pygame.draw.line(surface, BLACK,
                                              self.cells[y][x].topleft,
@@ -105,7 +96,6 @@ class GameGrid:
                                              self.cells[y][x].topright,
                                              self.cells[y][x].bottomleft, 3)
 
-                            # Анимация волн при потоплении
                             for i in range(10):
                                 radius = int(block_size * 0.3 * (10 - i) / 10)
                                 alpha = 255 * (10 - i) // 10
@@ -114,23 +104,21 @@ class GameGrid:
                                 surface.blit(s, (self.cells[y][x].centerx - radius,
                                                  self.cells[y][x].centery - radius))
                         else:
-                            # Обычное попадание
                             pygame.draw.circle(surface, RED,
                                                self.cells[y][x].center,
                                                block_size // 3)
 
-                    elif grid_data[y][x] == 3:  # Промах
+                    elif grid_data[y][x] == 3:
                         pygame.draw.circle(surface, BLACK,
                                            self.cells[y][x].center,
                                            block_size // 6)
 
-                # Для своего поля - полная отрисовка
                 else:
-                    if grid_data[y][x] == 1:  # Корабль
+                    if grid_data[y][x] == 1:
                         pygame.draw.rect(surface, WOOD, self.cells[y][x])
                         pygame.draw.rect(surface, BLACK, self.cells[y][x], 2)
 
-                    elif grid_data[y][x] == 2:  # Попадание по вашему кораблю
+                    elif grid_data[y][x] == 2:
                         sunk, _ = game_logic.check_ship_sunk(x, y, grid_data) if game_logic else (False, [])
                         if sunk:
                             pygame.draw.rect(surface, DARK_RED, self.cells[y][x])
@@ -149,10 +137,9 @@ class GameGrid:
                                              self.cells[y][x].topright,
                                              self.cells[y][x].bottomleft, 2)
 
-                    elif grid_data[y][x] == 3:  # Промах по вашему полю
+                    elif grid_data[y][x] == 3:
                         pygame.draw.circle(surface, BLACK,
                                            self.cells[y][x].center,
                                            block_size // 6)
 
-                # Обводка клетки
                 pygame.draw.rect(surface, BLACK, self.cells[y][x], 1)

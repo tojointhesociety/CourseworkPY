@@ -34,12 +34,11 @@ class ShipSelector:
         surface.blit(self.background, (self.rect.x, self.rect.y))
 
         for i, btn in enumerate(self.buttons):
-            count = self.ships_available[i]  # Используем ships_available вместо available_ships
+            count = self.ships_available[i]
             if count > 0:
                 btn.color = GOLD if self.ship_sizes[i] == self.selected_ship else WOOD
                 btn.draw(surface)
 
-                # Отображаем количество
                 count_text = self.count_font.render(f"×{count}", True, WHITE)
                 surface.blit(count_text, (btn.rect.right + 10, btn.rect.centery - 10))
 
@@ -56,19 +55,15 @@ class ShipSelector:
             if event.type == pygame.QUIT:
                 return False
 
-            # Вращение корабля по R
             if event.type == pygame.KEYDOWN and event.key == pygame.K_r:
                 if self.selected_ship_size:
                     self.ship_orientation = 1 - self.ship_orientation
 
             if event.type == pygame.MOUSEBUTTONDOWN:
-                # Обработка выбора корабля из селектора
                 selected = self.ship_selector.handle_event(mouse_pos, self.get_available_ships_list())
                 if selected is not None:
                     self.selected_ship_size = selected
-                    # Не сбрасываем orientation при выборе того же типа корабля
 
-                # Обработка размещения корабля на поле
                 if (self.selected_ship_size and
                         left_margin <= mouse_pos[0] <= left_margin + 10 * block_size and
                         upper_margin <= mouse_pos[1] <= upper_margin + 10 * block_size):
@@ -79,29 +74,24 @@ class ShipSelector:
                     if self.validate_placement(grid_x, grid_y, self.selected_ship_size):
                         self.place_ship(grid_x, grid_y, self.selected_ship_size)
 
-                        # Обновляем количество доступных кораблей
                         ship_index = self.ship_types.index(self.selected_ship_size)
                         self.ships_available[ship_index] -= 1
 
-                        # Автоматический сброс выбора при исчерпании кораблей этого типа
                         if self.ships_available[ship_index] <= 0:
                             self.selected_ship_size = None
 
-                        # Проверка завершения расстановки
                         if all(count == 0 for count in self.ships_available):
                             self.start_battle()
 
         return True
 
     def get_available_ships_list(self):
-        """Возвращает список доступных размеров кораблей (для ShipSelector)"""
         available = []
         for size, count in zip(self.ship_types, self.ships_available):
             available.extend([size] * count)
         return available
 
     def place_ship(self, x, y, size):
-        """Размещает корабль на поле игрока с учетом ориентации"""
         for i in range(size):
             dx = i if self.ship_orientation == 0 else 0
             dy = i if self.ship_orientation == 1 else 0

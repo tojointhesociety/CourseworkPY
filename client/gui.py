@@ -30,18 +30,15 @@ class MainMenu:
     def create_background(self):
         self.background.fill(OCEAN_BLUE)
 
-        # Волны
         for y in range(0, SCREEN_HEIGHT, 20):
             amplitude = 10 * (1 + math.sin((y + self.wave_offset) / 30))
             points = [(x, y + amplitude * math.sin(x / 50 + self.wave_offset / 10))
                       for x in range(0, SCREEN_WIDTH + 1, 10)]
             pygame.draw.lines(self.background, LIGHT_BLUE, False, points, 2)
 
-        # Солнце
         pygame.draw.circle(self.background, GOLD,
                            (SCREEN_WIDTH - 100, 100), 40)
 
-        # Облака
         for i in range(3):
             x = 100 + i * 300 + math.sin(self.wave_offset / 20 + i) * 50
             pygame.draw.ellipse(self.background, WHITE,
@@ -49,10 +46,9 @@ class MainMenu:
             pygame.draw.ellipse(self.background, WHITE,
                                 (x + 30, 60, 100, 50))
 
-    def update(self, mouse_pos=None):  # Добавляем необязательный параметр
+    def update(self, mouse_pos=None):
         self.wave_offset += 0.7
 
-        # Анимация кораблика
         self.ship_pos[0] += self.ship_speed
         self.ship_pos[1] += math.sin(self.ship_offset) * 2
         self.ship_offset += 0.05
@@ -61,7 +57,6 @@ class MainMenu:
             self.ship_pos[0] = -100
             self.ship_pos[1] = SCREEN_HEIGHT // 2 + random.randint(-50, 50)
 
-        # Обновление состояния кнопок
         if mouse_pos:
             for btn in self.buttons:
                 btn.is_hovered = btn.rect.collidepoint(mouse_pos)
@@ -70,7 +65,6 @@ class MainMenu:
         self.create_background()
         surface.blit(self.background, (0, 0))
 
-        # Кораблик
         rotated_ship = pygame.transform.rotate(
             self.ship_img,
             math.sin(self.ship_offset) * 5
@@ -80,7 +74,6 @@ class MainMenu:
             self.ship_pos[1] - rotated_ship.get_height() // 2
         ))
 
-        # Заголовок с эффектом волны
         title = "МОРСКОЙ БОЙ"
         for i, char in enumerate(title):
             wave_y = 10 * math.sin(i / 2 + self.wave_offset / 10)
@@ -94,7 +87,6 @@ class MainMenu:
                 surface.blit(shadow, (x + dx, y + dy))
             surface.blit(char_surf, (x, y))
 
-        # Кнопки
         for btn in self.buttons:
             btn.draw(surface)
 
@@ -103,24 +95,18 @@ def draw_grid_labels(surface):
     label_font = pygame.font.SysFont('Arial', 20, bold=True)
 
     for i in range(10):
-        # Буквы
         text = label_font.render(letters[i], True, GOLD)
         text_shadow = label_font.render(letters[i], True, BLACK)
 
-        # Тень
         surface.blit(text_shadow, (left_margin + i * block_size + block_size // 2 - text.get_width() // 2 + 1,
                                    upper_margin - 30 + 1))
-        # Основной текст
         surface.blit(text, (left_margin + i * block_size + block_size // 2 - text.get_width() // 2,
                             upper_margin - 30))
 
-        # Цифры
         num = label_font.render(str(i + 1), True, GOLD)
         num_shadow = label_font.render(str(i + 1), True, BLACK)
 
-        # Тень
         surface.blit(num_shadow, (left_margin - 25 + 1,
                                   upper_margin + i * block_size + block_size // 2 - num.get_height() // 2 + 1))
-        # Основной текст
         surface.blit(num, (left_margin - 25,
                            upper_margin + i * block_size + block_size // 2 - num.get_height() // 2))

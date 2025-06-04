@@ -109,12 +109,10 @@ class AuthScreen:
         height = 50
         x = (SCREEN_WIDTH - width) // 2
 
-        # Рисуем фон поля
         pygame.draw.rect(self.screen, (*LIGHT_BLUE, 100) if is_active else (*DARK_BLUE, 100),
                          (x, y, width, height), border_radius=10)
         pygame.draw.rect(self.screen, BLACK, (x, y, width, height), 2, border_radius=10)
 
-        # Текст (маскируем пароль)
         display_text = "*" * len(text) if is_password else text
         if not display_text and not is_active:
             placeholder = "Пароль" if is_password else "Логин"
@@ -127,12 +125,10 @@ class AuthScreen:
         self.screen.blit(text_surf, (x + 15, y + 10))
 
     def draw(self):
-        # Анимированный фон
         self.wave_offset += 0.5
         self.background = self.create_background()
         self.screen.blit(self.background, (0, 0))
 
-        # Заголовок с тенью
         title = self.title_font.render("Морской Бой", True, GOLD)
         shadow = self.title_font.render("Морской Бой", True, BLACK)
 
@@ -140,25 +136,21 @@ class AuthScreen:
             self.screen.blit(shadow, (SCREEN_WIDTH // 2 - shadow.get_width() // 2 + dx, 100 + dy))
         self.screen.blit(title, (SCREEN_WIDTH // 2 - title.get_width() // 2, 100))
 
-        # Подзаголовок
         subtitle = self.input_font.render(
             "Вход в систему" if self.mode == "login" else "Регистрация",
             True, WHITE
         )
         self.screen.blit(subtitle, (SCREEN_WIDTH // 2 - subtitle.get_width() // 2, 170))
 
-        # Поля ввода
         self.draw_field(self.username, 250, self.active_field == "username")
         self.draw_field(self.password, 310, self.active_field == "password", True)
 
         if self.mode == "register":
             self.draw_field(self.confirm_password, 370, self.active_field == "confirm_password", True)
 
-        # Кнопки
         self.action_btn.draw(self.screen)
         self.switch_btn.draw(self.screen)
 
-        # Сообщения об ошибках
         if hasattr(self, 'error_msg') and self.error_msg:
             error_text = self.error_font.render(self.error_msg, True, RED)
             self.screen.blit(error_text, (SCREEN_WIDTH // 2 - error_text.get_width() // 2, 470))
@@ -172,7 +164,6 @@ class AuthScreen:
             x, y = event.pos
             self.active_field = None
 
-            # Проверка клика по полям ввода
             field_x = (SCREEN_WIDTH - 400) // 2
             if field_x <= x <= field_x + 400:
                 if 250 <= y <= 300:
@@ -182,12 +173,11 @@ class AuthScreen:
                 elif self.mode == "register" and 370 <= y <= 420:
                     self.active_field = "confirm_password"
 
-            # Проверка клика по кнопкам
             if self.action_btn.rect.collidepoint(x, y):
                 if self.mode == "login":
                     error = self.auth.login(self.username, self.password)
                     if not error:
-                        return True  # Успешный вход
+                        return True
                     self.error_msg = error
                     self.success_msg = ""
                 else:

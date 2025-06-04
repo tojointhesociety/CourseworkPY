@@ -13,10 +13,8 @@ class Network:
     def connect(self, server="localhost", port=5555):
         try:
             self.client.connect((server, port))
-            # Устанавливаем таймаут для операций с сокетом
             self.client.settimeout(5.0)
 
-            # Получаем начальные данные
             data = self._receive()
             if data and 'player_id' in data:
                 self.player_id = data['player_id']
@@ -44,7 +42,6 @@ class Network:
             if not self.connected:
                 return None
 
-            # Добавляем player_id в каждое сообщение
             data['player_id'] = self.player_id
             self.client.sendall(pickle.dumps(data))
             return self._receive()
@@ -54,7 +51,7 @@ class Network:
 
     def check_data(self):
         try:
-            self.client.settimeout(0.1)  # Короткий таймаут
+            self.client.settimeout(0.1)
             data = self.client.recv(4096)
             if data:
                 return pickle.loads(data)
