@@ -1,8 +1,8 @@
-import pygame
 import random
 from game_objects import GameGrid
 from ship_selector import ShipSelector
 from constants import *
+from network import Network
 
 
 class GameLogic:
@@ -28,13 +28,16 @@ class GameLogic:
         self.ship_types = [4, 3, 2, 1]
         self.selected_ship_size = None
         self.ship_orientation = 0
+        self.network = None
+        self.player_id = None
 
     def update(self):
         if self.rotation_angle > 0:
             self.rotation_angle = max(0, self.rotation_angle - 10)
 
     def add_message(self, text):
-        """Добавляет сообщение в лог"""
+        if not hasattr(self, 'messages'):
+            self.messages = []
         self.messages.append(text)
         if len(self.messages) > 5:
             self.messages.pop(0)
@@ -48,7 +51,6 @@ class GameLogic:
         return available
 
     def draw_messages(self, surface):
-        """Отрисовывает панель сообщений"""
         pygame.draw.rect(surface, (*DARK_BLUE, 200), self.message_rect)
         pygame.draw.rect(surface, BLACK, self.message_rect, 2)
 
@@ -58,7 +60,6 @@ class GameLogic:
                                 self.message_rect.y + 10 + i * 30))
 
     def draw_status_panel(self, surface):
-        """Отрисовывает панель статуса"""
         pygame.draw.rect(surface, (*DARK_BLUE, 200), self.status_rect)
         pygame.draw.rect(surface, BLACK, self.status_rect, 2)
 
@@ -86,8 +87,8 @@ class GameLogic:
         return True
 
     def init_battle(self):
-        self.player_grid_obj = GameGrid(left_margin, upper_margin, is_player=True)
-        self.ai_grid_obj = GameGrid(left_margin + 15 * block_size, upper_margin, is_player=False)
+        self.player_grid = GameGrid(left_margin, upper_margin, is_player=True)
+        self.ai_grid = GameGrid(left_margin + 15 * block_size, upper_margin, is_player=False)
         self.battle_initialized = True
 
     def validate_placement(self, x, y, size):
@@ -118,42 +119,43 @@ class GameLogic:
         ship_index = [4, 3, 2, 1].index(size)
         self.ships_available[ship_index] -= 1
 
-        # Если корабли этого типа закончились - сбрасываем выбор
         if self.ships_available[ship_index] <= 0:
             self.selected_ship_size = None
-
-    def rotate_ship(self):
-        self.orientation = 1 - self.orientation
 
     def handle_shot(self, x, y, is_player=True):
         target_grid = self.ai_grid if is_player else self.player_grid
 
-        if target_grid[y][x] in [2, 3]:
-            self.add_message("Уже стреляли в эту клетку!")
-            return None  # Ничья сторона не получает ход
+        if target_grid[y][x] in [2, 3]:  # Уже стреляли сюда
+            return None
 
         if target_grid[y][x] == 1:  # Попадание
             target_grid[y][x] = 2
             sunk, ship_cells = self.check_ship_sunk(x, y, target_grid)
 
             if sunk:
+                self.last_sunk_size = len(ship_cells)
                 self.mark_around_ship(ship_cells, target_grid)
-                self.add_message(f"{'Вы' if is_player else 'ИИ'} потопили корабль!")
-            else:
-                self.add_message(f"{'Вы' if is_player else 'ИИ'} попали в корабль!")
-            return True  # Тот же игрок продолжает ход
-
+                return "sunk"
+            return "hit"
         else:  # Промах
             target_grid[y][x] = 3
-            self.add_message(f"{'Вы' if is_player else 'ИИ'} промахнулись!")
-            return False  # Ход переходит противнику
+            return "miss"
+
+    def mark_around_ship(self, ship_cells, grid):
+        directions = [(-1, -1), (-1, 0), (-1, 1),
+                      (0, -1), (0, 1),
+                      (1, -1), (1, 0), (1, 1)]
+
+        for x, y in ship_cells:
+            for dx, dy in directions:
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < 10 and 0 <= ny < 10 and grid[ny][nx] == 0:
+                    grid[ny][nx] = 3
 
     def check_ship_sunk(self, x, y, grid):
-        """Проверяет, потоплен ли корабль и возвращает его клетки"""
         ship_cells = []
         directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]
 
-        # Находим все клетки корабля
         to_check = [(x, y)]
         while to_check:
             cx, cy = to_check.pop()
@@ -164,24 +166,12 @@ class GameLogic:
                     if 0 <= nx < 10 and 0 <= ny < 10:
                         to_check.append((nx, ny))
 
-        # Проверяем, все ли клетки корабля подбиты
         for cx, cy in ship_cells:
             if grid[cy][cx] != 2:
                 return False, []
 
         return True, ship_cells
 
-    def mark_around_ship(self, ship_cells, grid):
-        """Помечает клетки вокруг потопленного корабля"""
-        directions = [(-1, -1), (-1, 0), (-1, 1),
-                      (0, -1), (0, 1),
-                      (1, -1), (1, 0), (1, 1)]
-
-        for x, y in ship_cells:
-            for dx, dy in directions:
-                nx, ny = x + dx, y + dy
-                if 0 <= nx < 10 and 0 <= ny < 10 and grid[ny][nx] == 0:
-                    grid[ny][nx] = 3  # Помечаем как промах вокруг корабля
 
     def check_victory(self):
         player_alive = any(1 in row for row in self.player_grid)
@@ -194,7 +184,7 @@ class GameLogic:
         return None
 
     def start_battle(self):
-        self.current_turn = True  # Игрок ходит первым
+        self.current_turn = True
         self.ai_grid = self.ai_ships
 
     def place_ai_ships(self):
@@ -218,18 +208,15 @@ class GameLogic:
             if event.type == pygame.QUIT:
                 return False
 
-            # Вращение корабля по R
             if event.type == pygame.KEYDOWN and event.key == pygame.K_r:
-                if self.selected_ship_size is not None:  # Добавляем проверку
+                if self.selected_ship_size is not None:
                     self.ship_orientation = 1 - self.ship_orientation
 
             if event.type == pygame.MOUSEBUTTONDOWN:
-                # Обработка выбора корабля из селектора
-                selected = self.ship_selector.handle_event(mouse_pos, self.get_available_ships())
+                selected = self.ship_selector.handle_event(mouse_pos, self.available_ships)
                 if selected is not None:
                     self.selected_ship_size = selected
 
-                # Обработка размещения корабля на поле (только если корабль выбран)
                 if (self.selected_ship_size is not None and
                         left_margin <= mouse_pos[0] <= left_margin + 10 * block_size and
                         upper_margin <= mouse_pos[1] <= upper_margin + 10 * block_size):
@@ -248,8 +235,8 @@ class GameLogic:
 
                         if all(count == 0 for count in self.ships_available):
                             self.start_battle()
-
-        return True
+                            return "battle"  # Возвращаем новое состояние
+                        return "placement"
 
 
     def handle_ship_placement(self, grid_x, grid_y):
@@ -270,22 +257,67 @@ class GameLogic:
             return True
         return False
 
+    def process_network_response(self, response, x, y):
+        if response['hit']:
+            self.ai_grid[y][x] = 2
+            if response.get('sunk'):
+                self.add_message("Вы потопили корабль!")
+            else:
+                self.add_message("Вы попали!")
+        else:
+            self.ai_grid[y][x] = 3
+            self.add_message("Вы промахнулись!")
 
-    def add_message(self, text):
-        self.messages.append(text)
-        if len(self.messages) > 5:
-            self.messages.pop(0)
+        self.current_turn = (response['turn'] == self.player_id)
+
+        if response.get('game_over'):
+            return "player" if response['winner'] == self.player_id else "enemy"
+        return None
+
+    def handle_network_shot(self, x, y):
+        try:
+            response = self.network.send({
+                'type': 'shot',
+                'coords': (x, y)
+            })
+
+            if response and response.get('type') == 'shot_result':
+                if response['hit']:
+                    self.ai_grid[response['y']][response['x']] = 2
+                    if response.get('sunk'):
+                        self.mark_around_ship(response['x'], response['y'], self.ai_grid)
+                    self.add_message("Вы попали!" if response['hit'] else "Вы промахнулись!")
+
+                if response.get('game_over'):
+                    return "player" if response['winner'] == self.player_id else "enemy"
+
+                self.current_turn = not response['hit'] or response.get('sunk', False)
+                return None
+
+        except Exception as e:
+            print(f"Ошибка при обработке выстрела: {e}")
+            self.add_message("Ошибка соединения")
+            return "disconnected"
 
 
-    def draw_messages(self, surface):
-        pygame.draw.rect(surface, (*DARK_BLUE, 200), self.message_rect)
-        pygame.draw.rect(surface, BLACK, self.message_rect, 2)
+    def handle_network(self):
+        if not self.network or not self.network.connected:
+            return False
 
-        for i, msg in enumerate(self.messages[-5:]):  # Показываем последние 5
-            text = self.message_font.render(msg, True, WHITE)
-            surface.blit(text, (self.message_rect.x + 10,
-                                self.message_rect.y + 10 + i * 30))
-
+        try:
+            # Проверяем состояние игры
+            state = self.network.send({"type": "get_state"})
+            if state and 'status' in state:
+                if state['status'] == 'battle' and not self.started:
+                    self.started = True
+                    self.add_message("Игра начинается!")
+                    return 'start'
+                elif state['status'] == 'disconnected':
+                    self.add_message("Соперник отключился")
+                    return 'disconnect'
+            return True
+        except:
+            return False
 class ComputerAI:
     def __init__(self, grid):
         self.grid = grid

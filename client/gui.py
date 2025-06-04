@@ -1,8 +1,6 @@
-import pygame
 import random
 from constants import *
-from gamelogic import ComputerAI
-from game_objects import Button, GameGrid
+from game_objects import Button
 
 
 class MainMenu:

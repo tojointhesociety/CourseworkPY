@@ -1,6 +1,8 @@
 import pygame
 import math
-
+import time
+import pickle
+import socket
 
 DARK_RED = (150, 0, 0)
 WHITE = (255, 255, 255)
@@ -28,6 +30,11 @@ SCREEN_HEIGHT = 800
 block_size = 30
 left_margin = 40
 upper_margin = 50
+CHAT_WIDTH = 400
+CHAT_HEIGHT = 200
+CHAT_X = 400
+CHAT_Y = 500
+STATUS_HEIGHT = 30
 
 pygame.font.init()
 font_size = int(block_size // 1.5)

@@ -5,7 +5,7 @@ from game_objects import Button
 class ShipSelector:
     def __init__(self, x, y):
         self.selected_ship = None
-        self.rect = pygame.Rect(x, y, 220, 220)
+        self.rect = pygame.Rect(x, y, 220, 250)
         self.background = pygame.Surface((220, 220), pygame.SRCALPHA)
         pygame.draw.rect(self.background, (*OCEAN_BLUE, 200),
                          (0, 0, 220, 220), border_radius=15)
@@ -34,19 +34,12 @@ class ShipSelector:
         surface.blit(self.background, (self.rect.x, self.rect.y))
 
         for i, btn in enumerate(self.buttons):
-            # Определяем состояние кнопки
-            if self.ship_sizes[i] == self.selected_ship:
-                btn.color = GOLD
-            elif self.ship_sizes[i] in available_ships:
-                btn.color = WOOD
-            else:
-                btn.color = DARK_GREY
-
-            btn.draw(surface)
-
-            # Отображаем количество доступных кораблей
-            count = available_ships.count(self.ship_sizes[i])
+            count = self.ships_available[i]  # Используем ships_available вместо available_ships
             if count > 0:
+                btn.color = GOLD if self.ship_sizes[i] == self.selected_ship else WOOD
+                btn.draw(surface)
+
+                # Отображаем количество
                 count_text = self.count_font.render(f"×{count}", True, WHITE)
                 surface.blit(count_text, (btn.rect.right + 10, btn.rect.centery - 10))
 

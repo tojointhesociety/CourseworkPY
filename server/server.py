@@ -1,130 +1,130 @@
 import socket
 import threading
 import pickle
-from _thread import *
-import time
+import traceback
 
 
 class Server:
-    def __init__(self):
-        self.host = "0.0.0.0"
-        self.port = 5555
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    def __init__(self, host='localhost', port=5555):
+        self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.server.bind((host, port))
+        self.server.listen()
+        self.players = {}
         self.games = {}
-        self.id_count = 0
-        self.connected = set()
+        self.player_count = 0
+        print(f"Сервер запущен на {host}:{port}")
 
-    def start(self):
+    def handle_client(self, conn, addr):
+        print(f"Новое подключение: {addr}")
+        player_id = self.player_count
+        self.player_count += 1
+
         try:
-            self.sock.bind((self.host, self.port))
-            self.sock.listen()
-            print(f"[SRV] Server started on {self.host}:{self.port}")
-            self.listen_connections()
+            # Отправляем игроку его ID
+            init_data = {"player_id": player_id}
+            conn.sendall(pickle.dumps(init_data))
+            print(f"Отправлено игроку {player_id}: {init_data}")
+
+            self.players[player_id] = {
+                "conn": conn,
+                "addr": addr,
+                "status": "waiting",
+                "ready": False
+            }
+
+            # Если есть четное количество игроков, создаем игру
+            if len(self.players) % 2 == 0:
+                game_id = len(self.games)
+                players_in_game = [player_id - 1, player_id]
+                self.games[game_id] = {
+                    "players": players_in_game,
+                    "status": "placement",
+                    "ready": 0
+                }
+
+                # Уведомляем игроков о начале игры
+                for pid in players_in_game:
+                    self.players[pid]["status"] = "placement"
+                    self.players[pid]["game_id"] = game_id
+                    start_msg = {
+                        "status": "start_placement",
+                        "message": "Оба игрока подключены! Расставьте корабли."
+                    }
+                    self.players[pid]["conn"].sendall(pickle.dumps(start_msg))
+                print(f"Создана игра #{game_id} для игроков {players_in_game}")
+
+            while True:
+                try:
+                    data = conn.recv(4096)
+                    if not data:
+                        break
+
+                    message = pickle.loads(data)
+                    print(f"Получено от {player_id}: {message}")
+
+                    # Обработка готовности игрока
+                    if message.get('type') == 'ready':
+                        game_id = self.players[player_id]["game_id"]
+                        self.games[game_id]["ready"] += 1
+                        self.players[player_id]["ready"] = True
+
+                        # Если оба игрока готовы, начинаем игру
+                        if self.games[game_id]["ready"] == 2:
+                            self.games[game_id]["status"] = "battle"
+                            self.games[game_id]["turn"] = 0  # Первый игрок ходит первым
+
+                            for i, pid in enumerate(self.games[game_id]["players"]):
+                                battle_msg = {
+                                    "status": "battle",
+                                    "message": "Игра начинается!",
+                                    "turn": i  # 0 для первого игрока, 1 для второго
+                                }
+                                self.players[pid]["conn"].sendall(pickle.dumps(battle_msg))
+                            print(f"Игра #{game_id} началась")
+
+                    # Обработка выстрела
+                    elif message.get('type') == 'shot':
+                        game_id = self.players[player_id]["game_id"]
+                        opponent_id = next(
+                            p for p in self.games[game_id]["players"]
+                            if p != player_id
+                        )
+
+                        # Пересылаем выстрел оппоненту
+                        shot_msg = {
+                            "type": "shot_result",
+                            "x": message["x"],
+                            "y": message["y"],
+                            "player_id": player_id
+                        }
+                        self.players[opponent_id]["conn"].sendall(pickle.dumps(shot_msg))
+
+                except Exception as e:
+                    print(f"Ошибка обработки данных: {str(e)}")
+                    traceback.print_exc()
+                    break
+
         except Exception as e:
-            print(f"[SRV ERROR] {e}")
-
-    def client_thread(self, conn, player_id, game_id):
-        conn.send(str.encode(str(player_id)))
-
-        while True:
+            print(f"Ошибка в основном цикле клиента: {str(e)}")
+            traceback.print_exc()
+        finally:
+            print(f"Отключение: {addr}")
             try:
-                data = conn.recv(4096)
-                if not data: break
+                conn.close()
+            except:
+                pass
+            if player_id in self.players:
+                del self.players[player_id]
 
-                message = pickle.loads(data)
-                if game_id in self.games:
-                    game = self.games[game_id]
-
-                    if message['type'] == 'ready':
-                        game.players_ready += 1
-                        if game.players_ready == 2:
-                            game.start = True
-
-                    elif message['type'] == 'shot':
-                        x, y = message['coords']
-                        game.process_shot(player_id, x, y)
-
-                    elif message['type'] == 'get_state':
-                        conn.sendall(pickle.dumps(game.get_state(player_id)))
-
-                    elif message['type'] == 'reset':
-                        game.reset()
-
-            except Exception as e:
-                print(f"[SRV ERROR] {e}")
-                break
-
-        print(f"[SRV] Player {player_id} disconnected")
-        try:
-            del self.games[game_id]
-        except:
-            pass
-        conn.close()
-
-    def listen_connections(self):
+    def run(self):
         while True:
-            conn, addr = self.sock.accept()
-            print(f"[SRV] New connection: {addr}")
-
-            self.id_count += 1
-            current_player = 0
-            game_id = (self.id_count - 1) // 2
-
-            if self.id_count % 2 == 1:
-                self.games[game_id] = Game(game_id)
-                print(f"[SRV] New game: {game_id}")
-            else:
-                self.games[game_id].start = False
-                current_player = 1
-
-            start_new_thread(self.client_thread, (conn, current_player, game_id))
-
-
-class Game:
-    def __init__(self, game_id):
-        self.game_id = game_id
-        self.players = [None, None]
-        self.players_ready = 0
-        self.start = False
-        self.grids = [[[0] * 10 for _ in range(10)],
-                      [[0] * 10 for _ in range(10)]]
-        self.turn = 0
-        self.winner = -1
-
-    def process_shot(self, player, x, y):
-        if player != self.turn: return
-
-        opponent = 1 - player
-        if self.grids[opponent][y][x] == 1:
-            self.grids[opponent][y][x] = 2
-            if self.check_win(opponent):
-                self.winner = player
-            else:
-                self.turn = opponent
-        else:
-            self.grids[opponent][y][x] = 3
-            self.turn = opponent
-
-    def check_win(self, opponent):
-        return all(cell != 1 for row in self.grids[opponent] for cell in row)
-
-    def get_state(self, player):
-        return {
-            'grids': self.grids,
-            'turn': self.turn,
-            'winner': self.winner,
-            'player_id': player,
-            'start': self.start
-        }
-
-    def reset(self):
-        self.grids = [[[0] * 10 for _ in range(10)],
-                      [[0] * 10 for _ in range(10)]]
-        self.turn = 0
-        self.winner = -1
-        self.players_ready = 0
+            conn, addr = self.server.accept()
+            thread = threading.Thread(target=self.handle_client, args=(conn, addr))
+            thread.daemon = True
+            thread.start()
 
 
 if __name__ == "__main__":
-    srv = Server()
-    srv.start()
+    server = Server()
+    server.run()

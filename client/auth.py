@@ -1,4 +1,3 @@
-import pygame
 import re
 import hashlib
 import os
@@ -96,12 +95,12 @@ class AuthScreen:
         center_x = SCREEN_WIDTH // 2
         self.action_btn = Button(
             "Войти" if self.mode == "login" else "Регистрация",
-            center_x - 220, 400, 200, 50,
+            center_x - 220, 450, 200, 50,
             color=WOOD, hover_color=GOLD, text_color=WHITE
         )
         self.switch_btn = Button(
             "Регистрация" if self.mode == "login" else "Вход",
-            center_x + 20, 400, 200, 50,
+            center_x + 20, 450, 200, 50,
             color=DARK_BLUE, hover_color=LIGHT_BLUE, text_color=WHITE
         )
 
