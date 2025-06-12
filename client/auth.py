@@ -66,7 +66,7 @@ class AuthSystem:
 class AuthScreen:
     def __init__(self, screen):
         self.screen = screen
-        self.auth = AuthSystem()  # Теперь класс определен
+        self.auth = AuthSystem()
         self.mode = "login"
         self.username = ""
         self.password = ""

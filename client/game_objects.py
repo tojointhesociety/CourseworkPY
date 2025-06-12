@@ -1,5 +1,3 @@
-import pygame
-import math
 from constants import *
 
 
@@ -53,9 +51,17 @@ class GameGrid:
                            (0, i), (block_size, i), 1)
         return pattern
 
-    def draw(self, surface, grid_data, game_logic=None):
+    def draw(self, surface, grid_data, game_logic=None, is_player_grid=False):
+        """
+        Параметры:
+        - grid_data: данные сетки
+        - game_logic: ссылка на игровую логику (для предпросмотра размещения)
+        - is_player_grid: True, если это поле игрока (показывать корабли)
+        """
         pygame.draw.rect(surface, OCEAN_BLUE, self.rect)
-        if game_logic and game_logic.selected_ship_size and self.is_player:
+
+        # Предпросмотр размещения кораблей (только для своего поля)
+        if game_logic and game_logic.selected_ship_size and is_player_grid:
             mouse_pos = pygame.mouse.get_pos()
             if self.rect.collidepoint(mouse_pos):
                 grid_x = (mouse_pos[0] - self.rect.x) // block_size
@@ -80,66 +86,39 @@ class GameGrid:
                         s.fill(color)
                         surface.blit(s, cell_rect)
                         pygame.draw.rect(surface, BLACK, cell_rect, 1)
+
+        # Отрисовка сетки и содержимого
         for y in range(10):
             for x in range(10):
+                # Фоновый узор волн
                 surface.blit(self.wave_pattern, self.cells[y][x])
 
-                if not self.is_player:
-                    if grid_data[y][x] == 2:
-                        sunk, _ = game_logic.check_ship_sunk(x, y, grid_data) if game_logic else (False, [])
-                        if sunk:
-                            pygame.draw.rect(surface, DARK_RED, self.cells[y][x])
-                            pygame.draw.line(surface, BLACK,
-                                             self.cells[y][x].topleft,
-                                             self.cells[y][x].bottomright, 3)
-                            pygame.draw.line(surface, BLACK,
-                                             self.cells[y][x].topright,
-                                             self.cells[y][x].bottomleft, 3)
+                cell = grid_data[y][x]
+                cell_rect = self.cells[y][x]
 
-                            for i in range(10):
-                                radius = int(block_size * 0.3 * (10 - i) / 10)
-                                alpha = 255 * (10 - i) // 10
-                                s = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
-                                pygame.draw.circle(s, (*WHITE, alpha), (radius, radius), radius)
-                                surface.blit(s, (self.cells[y][x].centerx - radius,
-                                                 self.cells[y][x].centery - radius))
-                        else:
-                            pygame.draw.circle(surface, RED,
-                                               self.cells[y][x].center,
-                                               block_size // 3)
+                # Для своего поля (показываем корабли)
+                if is_player_grid:
+                    if cell == 1:  # Корабль
+                        pygame.draw.rect(surface, WOOD, cell_rect)
+                        pygame.draw.rect(surface, BLACK, cell_rect, 2)
 
-                    elif grid_data[y][x] == 3:
-                        pygame.draw.circle(surface, BLACK,
-                                           self.cells[y][x].center,
-                                           block_size // 6)
+                    elif cell == 2:  # Подбитая часть
+                        pygame.draw.rect(surface, RED, cell_rect)
+                        pygame.draw.line(surface, BLACK, cell_rect.topleft, cell_rect.bottomright, 2)
+                        pygame.draw.line(surface, BLACK, cell_rect.topright, cell_rect.bottomleft, 2)
 
+                    elif cell == 3:  # Промах
+                        pygame.draw.circle(surface, BLACK, cell_rect.center, block_size // 6)
+
+                # Для вражеского поля (скрываем корабли)
                 else:
-                    if grid_data[y][x] == 1:
-                        pygame.draw.rect(surface, WOOD, self.cells[y][x])
-                        pygame.draw.rect(surface, BLACK, self.cells[y][x], 2)
+                    if cell == 2:  # Попадание
+                        pygame.draw.rect(surface, RED, cell_rect)
+                        pygame.draw.line(surface, BLACK, cell_rect.topleft, cell_rect.bottomright, 3)
+                        pygame.draw.line(surface, BLACK, cell_rect.topright, cell_rect.bottomleft, 3)
 
-                    elif grid_data[y][x] == 2:
-                        sunk, _ = game_logic.check_ship_sunk(x, y, grid_data) if game_logic else (False, [])
-                        if sunk:
-                            pygame.draw.rect(surface, DARK_RED, self.cells[y][x])
-                            pygame.draw.line(surface, BLACK,
-                                             self.cells[y][x].topleft,
-                                             self.cells[y][x].bottomright, 3)
-                            pygame.draw.line(surface, BLACK,
-                                             self.cells[y][x].topright,
-                                             self.cells[y][x].bottomleft, 3)
-                        else:
-                            pygame.draw.rect(surface, RED, self.cells[y][x])
-                            pygame.draw.line(surface, BLACK,
-                                             self.cells[y][x].topleft,
-                                             self.cells[y][x].bottomright, 2)
-                            pygame.draw.line(surface, BLACK,
-                                             self.cells[y][x].topright,
-                                             self.cells[y][x].bottomleft, 2)
+                    elif cell == 3:  # Промах
+                        pygame.draw.circle(surface, BLACK, cell_rect.center, block_size // 6)
 
-                    elif grid_data[y][x] == 3:
-                        pygame.draw.circle(surface, BLACK,
-                                           self.cells[y][x].center,
-                                           block_size // 6)
-
-                pygame.draw.rect(surface, BLACK, self.cells[y][x], 1)
+                # Границы клеток
+                pygame.draw.rect(surface, BLACK, cell_rect, 1)
